@@ -26,6 +26,7 @@
     deploy ssh key in github repo
     jenkins git credentials change
 
+    sudo docker restart jenkins-test
+
     find init password
     sudo docker exec jenkins-test cat /var/jenkins_home/secrets/initialAdminPassword
-
