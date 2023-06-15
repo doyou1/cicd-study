@@ -1,11 +1,149 @@
-- references: https://devops4solutions.com/ci-cd-using-jenkins-and-docker-2/
+- references: https://www.youtube.com/watch?v=sIPU_VkrguI
 
-# CI/CD using Jenkins and Docker
+CI? 코드 합치는거 아닌가?
+배포 자동화? 어떻게 하는거지?
 
-<img src="https://devops4solutions.com/wp-content/uploads/2020/09/CI-CD-using-Jenkins-and-Docker.png" />
+# 용어 정리(사전 준비)
+- 컴파일 : 프로그래머가 작성한 소스코드를 기계어로 변환하는 과정
+- 빌드 : 소스 코드 파일을 컴퓨터에서 실행할 수 있는 소프트웨어 산출물로 만드는 과정
+- 배포 : 빌드의 결과물을 사용자가 접근할 수 있는 환경에 배치하는 것
+* 빌드안에 보통 컴파일이 포함되어 있음 
 
-In this blog, we will explore the CI/Cd process using Jenkins and Docker. We will deploy the sample java application using Docker container. We will be deploying war file in tomcat container. At last, this process will help us in achieving continuous integration and continuous deployment for your application inside a container
-If you want to see the video for this article, https://www.youtube.com/watch?v=B1sjiq1wD_Y
+# 1. CI/CD
+에자일 방식 중 하나인 Extreme Programming의 실천 방안
+> Testing
+> Refactoring
+> Pair Programming
+> ...
+> CI(Continuous Integration)
 
-## Prerequisite:
-1. Two AWS EC2
+- CI(Continuous Integration) : 지속적 통합이라는 뜻으로 개발을 진행하면서도 품질을 관리할 수 있도록 여러 명이 하나의 코드에 대해서 수정을 진행해도 지속적으로 통합하면서 관리할 수 있음을 의미한다.
+
+  - CI가 있기 전에 개발자들은 "머지데이"라는 날을 통해 모든 분기의 소스코드를 병합해야 했습니다.
+    > 결과적으로 많은 리소스를 낭비하게 됨
+    > 개발자의 실수로 에러가 발생하기도 함
+
+  - CI를 이용하면 코드 작성이 완료될 때마다 소스를 자동으로 병합할 수 있다!
+
+### CI 과정
+1. 개발자가 코드 병합을 요청한다.
+2. 젠킨스와 같은 CI 툴이 빌드와 테스트를 진행한다.
+3. 이때 이상이 없으면 코드를 병합한다. 문제가 발생할 경우 이를 개발자에게 빠르게 피드백 해줌
+
+### CI의 4가지 규칙
+1. 모든 소스코드가 살아 있고 누구든 현재의 소스에 접근할 수 있는 단일 지점을 유지할 것
+2. 빌드 프로세스를 자동화해서 누구든 소스로부터 시스템을 빌드할 수 있게 할 것
+3. 테스팅을 자동화해서 언제든지 시스템에 대한 건전한 테스트 수트를 실행할 수 있게 할 것
+4. 누구든 현재 실행 파일을 얻으면 지금까지 가장 완전한 실행 파일을 얻었다는 확신을 하게 할 것
+
+> CI 업무를 적절하게 수행했다면, 이제 서버로 들어가면 최신의 완전한 실행 파일을 얻을 수 있으니 deploy.sh를 실행시켜 배포만 하면 끝?
+- 그런데 이 배포도 수동이니 배포 역시 자동화 해보자! 그래서 등장한 개념 CD
+  - CD(Continuous Deployment) : 지속적 배포라는 뜻으로 빌드의 결과물을 프로덕션으로 릴리스하는 작업을 자동화하는 것을 의미한다.
+  * CD라고 하면 지속적 제공(Continuous Delivery), 지속적 배포(Continuous Deployment)를 혼동해서 사용하는 경우가 있다.
+    > 개발 단계가 Code -> Build -> Test -> Staging -> Deploy와 같다고 했을 때
+    > 지속적 통합(Continous Integration)는 Code -> Build -> Test
+    > 
+    > 지속적 제공(Continous Delivery)는 Code -> Build -> Test -> Staging
+    > 
+    > 지속적 배포(Continous Deployment)는 Code -> Build -> Test -> Staging -> Deploy
+
+### CI/CD 흐름
+1. 개발자가 코드 병합을 요청한다.
+2. CI/CD tool이 Build, Test를 진행한다. 이때, 에러가 발생하면 개발자에게 피드백을 주고, 에러가 없으면 병합을 진행함
+-----여기까지 CI 과정--------
+1. (CD 과정)이후, 병합된 코드를 통해 배포를 진행한다
+   
+### 정리
+CI
+- 고객의 요구사항에 빠르게 대응하기 위해 나온 Extreme Programming(XP)의 실천방안 중 한가지
+- 여러 명이 하나의 코드에 대해서 수정을 진행해도 지속적으로 통합하면서 관리할 수 있음을 의미
+
+CD
+- CI의 연장선에 있는 개념
+- 빌드의 결과물을 프로덕션으로 지속적으로 배포하는 것을 의미
+
+# 2. Nondisruptive Deployment
+CI/CD를 활용해도 해결하지 못하는 문제점이 있다.
+CI/CD를 통해 배포 자동화로 서비스를 운영하고 있다고 가정한다면,
+서비스 중 -> (새로운 버전 빌드) -> 기존 서비스 종료 -> (다운 타임) -> 새로운 서비스 시작
+
+잠깐일지라도 기존 서비스를 종료하고, 새로운 서비스를 배포하는 동안 서비스를 이용하지 못하는 다운 타임이 생김
+
+그때 우리는 "무중단 배포"를 활용할 수 있다.
+
+### 무중단 배포 구현 방법
+- AWS에서 Blue-Green 무중단 배포
+- 도커를 이용한 무중단 배포
+- L4, L7 스위치를 이용한 무중단 배포
+- Nginx를 이용한 무중단 배포
+    > Nginx를 이용한 무중단 배포가 쉽고, 저렴하다는 이유에서 대중적으로 활용되는 듯 하다? (확인 필요)
+
+### 무중단 배포 관련 자주 사용되는 용어
+
+리버스 프록시
+- 인터넷과 서버 사이에 위치한 중계 서버
+- 클라이언트가 요청한 내용을 캐싱
+- 서버 정보를 클라이언트로부터 숨길 수 있어 보안에 용이
+    > Client <-> Reverse Proxy <-> Server
+
+로드 밸런싱
+- 부하 분산
+- 서버에 가해지는 부하를 분산해주는 역할
+- 하나의 서버가 멈추더라도 서비스 중단 없이 다른 서버가 서비스를 계속 유지할 수 있는 무중단 배포가 가능
+    > Client <-> Load Balancer <-> Server
+ 
+* 로드 밸런싱 알고리즘
+
+### 무중단 배포 방식
+Rolling 배포
+- 무중단 배포의 가장 기본적인 방식
+- 서버를 차례대로 업데이트 시키는 방식
+- 라우팅 설정을 해제?한 후 업데이트가 완료되면 라우팅을 다시 설정한다.
+
+    장점 
+    - 인스턴스를 추가하지 않아도 되기에 관리 간편
+
+    단점
+    - 사용중인 인스턴스에 트래픽이 몰릴 수 있음
+    - 구버전과 신버전의 공존으로 인한 호환성 문제
+
+Canary 배포
+- 옛날 광부들이 유독 가스에 민감한 카나리아 새를 이용해 가스 누출 위험을 감지했던 것에서 유래
+- 신버전을 소수의 사용자들에게만 배포
+- 문제가 없는 것이 확인되면 점진적으로 다른 서버에 신버전 배포
+- 라우팅 설정을 해제?한 후 신버전의 문제없음이 확인되면 라우팅을 다시 설정한다. 
+
+    장점
+    - 문제 상황을 빠르게 감지 가능
+    - A/B 테스트로 활용 가능
+    
+    단점
+    - 모니터링 관리 비용
+    - 구버전과 신버전의 공존으로 인한 호환성 문제
+
+Blue / Green 배포
+- Blue를 구버전, Green을 신버전으로 지칭
+- 구버전과 동일하게 신버전의 인스턴스를 구성
+- 신버전 배포 시 로드 밸런서를 통해 신버전으로만 트래픽을 전환
+- 현재 서비스 중인 서버, 대기중인 서버를 구축하고, 대기중인 서버에 신버전을 배포하고, 배포가 완료되면 라우팅을 대기중인 서버로 변경해주면 된다.
+- 그러면 현재 서비스 중인 서버 > 대기중인 서버, 대기중인 서버 > 현재 서비스 중인 서버가 된다.
+
+    장점
+    - 배포하는 속도가 빠르다.
+    - 신속하게 롤백 가능
+    - 남아 있는 기존 버전의 환경을 다음 배포에 재사용
+
+    단점
+    - 시스템 자원이 2배로 필요
+
+### 정리
+
+무중단 배포
+- 다운타임없이 서버를 운영할 수 있게 해주는 배포 방식
+- Rolling, Canary, Blue-Green
+
+리버스 프록시
+- 클라이언트의 요청을 대신 받아 서버에 전달하는 대리 서버
+  
+로드 밸런싱
+- 클라이언트의 요청을 여러 서버에 분산해주는 역할

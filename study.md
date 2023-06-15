@@ -30,3 +30,12 @@
 
     find init password
     sudo docker exec jenkins-test cat /var/jenkins_home/secrets/initialAdminPassword
+
+
+chmod +x ./api/gradlew
+./api/gradlew build docker dockerRun
+
+chmod +x ./api/gradlew
+./api/gradlew clean build test
+./api/gradlew build docker dockerRun
+
